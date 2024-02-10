@@ -6,6 +6,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"io/ioutil"
@@ -15,7 +16,6 @@ import (
 	"testing"
 )
 
-const sepoliaUrl = ""
 const mainnetUrl = ""
 const localUrl = "http://127.0.0.1:8545"
 
@@ -64,7 +64,7 @@ func TestWallet(t *testing.T) {
 	fmt.Println("address:", crypto.PubkeyToAddress(pvk.PublicKey).Hex())
 }
 
-func TestKeystore(t *testing.T) {
+func TestMakeKeystore(t *testing.T) {
 	password := "password"
 
 	// создание стора для хранения аккаунтов(кошельков)
@@ -126,4 +126,69 @@ func TestBalanceDifferentNetworks(t *testing.T) {
 
 	fmt.Println("mainnet balance: ", b1)
 	fmt.Println("sepolia balance: ", b2)
+}
+
+func TestMakeTransaction(t *testing.T) {
+	password := "password"
+	client, err := ethclient.Dial(sepoliaUrl)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer client.Close()
+
+	address1 := common.HexToAddress("236a0e676bf8ae80fdf731de7cbec06c27b1cd5c")
+	address2 := common.HexToAddress("4d2a47eeab5caf04ff4bf5d3a13bf82f72f69595")
+
+	// получение порядкового номера нашего кошелька из сети
+	nonce, err := client.PendingNonceAt(context.Background(), address1)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// получаем из сети текущую стоимость газа
+	gasPrice, err := client.SuggestGasPrice(context.Background())
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// колличество wei, которые мы переводим
+	// 1 ether = 1000000000000000000 wei
+	amount := big.NewInt(100000000000000000)
+
+	// создаём транзакцию (комиссия = 21000 * gasPrice)
+	// вся сумма которая будет списана с нашего кошелька равна: amount + 21000 * gasPrice
+	tx := types.NewTransaction(nonce, address2, amount, 21000, gasPrice, nil)
+
+	// получаем идентификатор сети, в которой мы выполняем транзакцию
+	chainID, err := client.NetworkID(context.Background())
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// файл-кошелька
+	b, err := ioutil.ReadFile("wallets/UTC--2024-02-10T19-50-15.564706810Z--236a0e676bf8ae80fdf731de7cbec06c27b1cd5c")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// получаем и расшифровываем ключ из файл-кошелька
+	key, err := keystore.DecryptKey(b, password)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// подписываем транзакцию приватным ключём
+	tx, err = types.SignTx(tx, types.NewEIP155Signer(chainID), key.PrivateKey)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// отправляем транзакцию в сеть на выполнение
+	err = client.SendTransaction(context.Background(), tx)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// hash отправленной транзакции
+	fmt.Printf("tx sent: %s", tx.Hash().Hex())
 }
