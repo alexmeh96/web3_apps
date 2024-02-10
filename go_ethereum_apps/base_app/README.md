@@ -4,4 +4,4 @@ sudo npm install -g ganache-cli
 
 ganache-cli
 
-![img.png](img/img.png)
+![img.png](../../img/img.png)
