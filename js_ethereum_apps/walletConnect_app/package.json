@@ -1,10 +1,10 @@
 {
-  "name": "wagmi_app",
+  "name": "walletconnect_app",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
-  "type": "module",
   "scripts": {
+    "build": "webpack --config webpack.config.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -13,7 +13,13 @@
   "dependencies": {
     "@wagmi/connectors": "^4.1.13",
     "@wagmi/core": "^2.6.4",
+    "@web3modal/wagmi": "^4.0.1",
     "dotenv": "^16.4.2",
     "viem": "^2.7.8"
+  },
+  "devDependencies": {
+    "dotenv-webpack": "^8.0.1",
+    "webpack": "^5.90.1",
+    "webpack-cli": "^5.1.4"
   }
 }

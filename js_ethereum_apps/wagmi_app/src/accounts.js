@@ -1,7 +1,10 @@
 import {createConfig, getBalance, getBlock, http} from '@wagmi/core'
 import {sepolia} from '@wagmi/core/chains'
+import * as dotenv from 'dotenv'
 
-const INFURA_ID = ''
+dotenv.config({ path: '../.env' })
+
+const INFURA_ID = process.env.INFURA_ID
 
 const config = createConfig({
     // chains: [mainnet, sepolia],

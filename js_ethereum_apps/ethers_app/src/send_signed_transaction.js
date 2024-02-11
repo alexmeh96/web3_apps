@@ -1,6 +1,9 @@
-const { ethers } = require("ethers");
+import { ethers } from 'ethers'
+import * as dotenv from 'dotenv'
 
-const INFURA_ID = ''
+dotenv.config({ path: '../.env' })
+
+const INFURA_ID = process.env.INFURA_ID
 const provider = new ethers.JsonRpcProvider(`https://kovan.infura.io/v3/${INFURA_ID}`)
 
 const account1 = '' // Your account address 1

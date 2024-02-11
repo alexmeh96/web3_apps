@@ -1,8 +1,10 @@
 import {createPublicClient, http} from 'viem'
 import {mainnet} from "viem/chains";
+import * as dotenv from 'dotenv'
 
-const INFURA_ID = ''
+dotenv.config({ path: '../.env' })
 
+const INFURA_ID = process.env.INFURA_ID
 
 const client = createPublicClient({
     chain: mainnet,
