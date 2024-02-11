@@ -18,3 +18,5 @@ solc --bin --abi contract/todo.sol -o build
 ```shell
 abigen --bin=build/Todo.bin --abi=build/Todo.abi --pkg=todo --out=gen/todo.go
 ```
+
+![img.png](../../img/img2.png)

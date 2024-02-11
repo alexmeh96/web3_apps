@@ -1,8 +1,10 @@
 package base_app
 
 import (
+	todo "base_app/gen"
 	"context"
 	"fmt"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -69,9 +71,9 @@ func TestMakeKeystore(t *testing.T) {
 	password := "password"
 
 	// создание стора для хранения аккаунтов(кошельков)
-	keyStore := keystore.NewKeyStore("./wallets", keystore.StandardScryptN, keystore.StandardScryptP)
+	keyStore := keystore.NewKeyStore("./wallet", keystore.StandardScryptN, keystore.StandardScryptP)
 
-	// создание аккаунта(кошелька) и сохранение в дирректорию ./wallets файл,
+	// создание аккаунта(кошелька) и сохранение в дирректорию ./wallet файл,
 	// который содержит закрытый ключ, зашированный паролем
 	a, err := keyStore.NewAccount(password)
 	if err != nil {
@@ -129,7 +131,7 @@ func TestBalanceDifferentNetworks(t *testing.T) {
 	fmt.Println("sepolia balance: ", b2)
 }
 
-func TestMakeTransaction(t *testing.T) {
+func TestMakeAndSendTransaction(t *testing.T) {
 	password := "password"
 	client, err := ethclient.Dial(sepoliaUrl)
 	if err != nil {
@@ -167,7 +169,7 @@ func TestMakeTransaction(t *testing.T) {
 	}
 
 	// файл-кошелька
-	b, err := ioutil.ReadFile("wallets/UTC--2024-02-10T19-50-15.564706810Z--236a0e676bf8ae80fdf731de7cbec06c27b1cd5c")
+	b, err := ioutil.ReadFile("wallet/UTC--2024-02-10T19-50-15.564706810Z--236a0e676bf8ae80fdf731de7cbec06c27b1cd5c")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -192,4 +194,64 @@ func TestMakeTransaction(t *testing.T) {
 
 	// hash отправленной транзакции
 	fmt.Printf("tx sent: %s", tx.Hash().Hex())
+}
+
+func TestMakeAndDeployContract(t *testing.T) {
+	password := "password"
+
+	// файл-кошелька
+	b, err := ioutil.ReadFile("wallet/UTC--2024-02-10T19-50-15.564706810Z--236a0e676bf8ae80fdf731de7cbec06c27b1cd5c")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// получаем и расшифровываем ключ из файл-кошелька
+	key, err := keystore.DecryptKey(b, password)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	client, err := ethclient.Dial(sepoliaUrl)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer client.Close()
+
+	address := crypto.PubkeyToAddress(key.PrivateKey.PublicKey)
+
+	// получение порядкового номера нашего кошелька из сети
+	nonce, err := client.PendingNonceAt(context.Background(), address)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// получаем из сети текущую стоимость газа
+	gasPrice, err := client.SuggestGasPrice(context.Background())
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// получаем идентификатор сети, в которой мы выполняем транзакцию
+	chainID, err := client.NetworkID(context.Background())
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	txOpts, err := bind.NewKeyedTransactorWithChainID(key.PrivateKey, chainID)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	txOpts.GasPrice = gasPrice
+	txOpts.GasLimit = uint64(3000000)
+	txOpts.Nonce = big.NewInt(int64(nonce))
+
+	// отправка контракта в сеть
+	addr, tx, _, err := todo.DeployTodo(txOpts, client)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println(addr.Hex())
+	fmt.Println(tx.Hash().Hex())
 }
