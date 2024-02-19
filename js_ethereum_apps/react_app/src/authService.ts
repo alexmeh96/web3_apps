@@ -3,8 +3,9 @@ import {getAccount} from '@wagmi/core'
 
 
 export async function getNonce() {
-    const res = await fetch('http://localhost:8085/api/nonce', {
-        credentials: 'include',
+    const {address} = getAccount(config)
+    const res = await fetch(`http://localhost:8085/api/nonce/${address}`, {
+        // credentials: 'include',
     })
 
     return await res.text()
@@ -17,7 +18,7 @@ export async function validateMessage({message, signature}: any) {
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({message, signature}),
-        credentials: 'include',
+        // credentials: 'include',
     })
 
     return true
