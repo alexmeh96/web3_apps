@@ -3,22 +3,21 @@ import {getAccount} from '@wagmi/core'
 
 
 export async function getNonce() {
-    const {address} = getAccount(config)
-    const res = await fetch(`http://localhost:8085/api/nonce/${address}`, {
-        // credentials: 'include',
+    const res = await fetch(`http://localhost:8085/api/nonce`, {
+        credentials: 'include',
     })
 
     return await res.text()
 }
 
 export async function validateMessage({message, signature}: any) {
-    const res = await fetch('http://localhost:8085/api/verify', {
+    const res = await fetch('http://localhost:8085/api/signin', {
         method: "POST",
         headers: {
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({message, signature}),
-        // credentials: 'include',
+        credentials: 'include',
     })
 
     return true
@@ -32,7 +31,7 @@ export async function getSession() {
 
 export async function valid() {
     try {
-        const res = await fetch('http://localhost:8085/api/validate', {
+        const res = await fetch('http://localhost:8085/api/private', {
             credentials: 'include',
         })
 

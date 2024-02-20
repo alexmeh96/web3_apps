@@ -2,7 +2,10 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"github.com/gorilla/sessions"
+	"github.com/rs/cors"
 	"github.com/spruceid/siwe-go"
 	"net/http"
 )
@@ -12,66 +15,108 @@ type signInParams struct {
 	Signature string `json:"signature"`
 }
 
-var sessionStore = make(map[string]string)
+var store = sessions.NewCookieStore([]byte("SESSION_KEY"))
 
 func main() {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /api/nonce/{address}", func(w http.ResponseWriter, r *http.Request) {
-		address := r.PathValue("address")
-		fmt.Printf("address: %s", address)
+	store.Options.HttpOnly = true
 
-		nonce := siwe.GenerateNonce()
-		sessionStore[address] = nonce
+	mux.HandleFunc("GET /api/nonce", makeHTTPHandleFunc(getNonce))
+	mux.HandleFunc("POST /api/signin", makeHTTPHandleFunc(signin))
+	mux.HandleFunc("GET /api/private", withAuth(makeHTTPHandleFunc(private)))
 
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+	//handler := cors.Default().Handler(mux)
 
-		w.Write([]byte(nonce))
+	c := cors.New(cors.Options{
+		AllowedOrigins:   []string{"http://localhost:3000"},
+		AllowCredentials: true,
+		//Debug:            true,
 	})
 
-	mux.HandleFunc("OPTIONS /*", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "*")
-		w.Header().Set("Access-Control-Allow-Headers", "*")
-		w.Header().Set("Access-Control-Max-Age", "300")
-	})
+	handler := c.Handler(mux)
 
-	mux.HandleFunc("POST /api/verify", func(w http.ResponseWriter, r *http.Request) {
-		var data signInParams
-		err := json.NewDecoder(r.Body).Decode(&data)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
+	fmt.Println("server started on 8085")
+	http.ListenAndServe(":8085", handler)
+}
+
+func private(w http.ResponseWriter, r *http.Request) error {
+	return WriteText(w, http.StatusOK, "private")
+}
+
+func getNonce(w http.ResponseWriter, r *http.Request) error {
+	nonce := siwe.GenerateNonce()
+
+	session, _ := store.Get(r, "sessionId")
+	session.Values["nonce"] = nonce
+
+	if err := session.Save(r, w); err != nil {
+		return err
+	}
+
+	return WriteText(w, http.StatusOK, nonce)
+}
+
+func signin(w http.ResponseWriter, r *http.Request) error {
+	var data signInParams
+	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
+		return err
+	}
+
+	siweMessage, err := siwe.ParseMessage(data.Message)
+	if err != nil {
+		return err
+	}
+
+	session, _ := store.Get(r, "sessionId")
+	nonce := session.Values["nonce"]
+
+	if siweMessage.GetNonce() != nonce {
+		return errors.New("message nonce doesn't match")
+	}
+
+	if _, err := siweMessage.VerifyEIP191(data.Signature); err != nil {
+		return err
+	}
+
+	session.Values["address"] = siweMessage.GetAddress().String()
+
+	if err := session.Save(r, w); err != nil {
+		return err
+	}
+
+	return WriteJSON(w, http.StatusOK, nil)
+
+}
+
+func withAuth(handlerFunc http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		println("auth")
+
+		handlerFunc(w, r)
+	}
+}
+
+type apiFunc func(http.ResponseWriter, *http.Request) error
+
+func makeHTTPHandleFunc(f apiFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err := f(w, r); err != nil {
+			WriteJSON(w, http.StatusBadRequest, err.Error())
 		}
+	}
+}
 
-		siweMessage, err := siwe.ParseMessage(data.Message)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
+func WriteJSON(w http.ResponseWriter, status int, v any) error {
+	w.WriteHeader(status)
+	w.Header().Set("Content-Type", "application/json")
+	return json.NewEncoder(w).Encode(v)
+}
 
-		address := siweMessage.GetAddress()
+func WriteText(w http.ResponseWriter, status int, v string) error {
+	w.WriteHeader(status)
+	w.Header().Set("Content-Type", "text/plain")
+	w.Write([]byte(v))
 
-		nonce := sessionStore[address.String()]
-		// todo: вытащить nonce из ссесии по адрессу
-		//nonce := siweMessage.GetNonce()
-
-		if siweMessage.GetNonce() != nonce {
-			http.Error(w, "Message nonce doesn't match", http.StatusBadRequest)
-			return
-		}
-
-		publicKey, err := siweMessage.VerifyEIP191(data.Signature)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		fmt.Println(publicKey)
-
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-	})
-
-	fmt.Println("server started on 8086")
-	http.ListenAndServe(":8085", mux)
+	return nil
 }
