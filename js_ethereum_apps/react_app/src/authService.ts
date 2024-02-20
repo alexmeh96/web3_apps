@@ -31,7 +31,7 @@ export async function getSession() {
 
 export async function valid() {
     try {
-        const res = await fetch('http://localhost:8085/api/private', {
+        const res = await fetch('http://localhost:8085/api/participate', {
             credentials: 'include',
         })
 
@@ -43,5 +43,14 @@ export async function valid() {
 }
 
 export async function signOut() {
+    try {
+        const res = await fetch('http://localhost:8085/api/signout', {
+            credentials: 'include',
+        })
 
+        console.log(await res.text())
+    } catch (err) {
+
+        console.log(err)
+    }
 }

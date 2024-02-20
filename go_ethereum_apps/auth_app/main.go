@@ -24,7 +24,8 @@ func main() {
 
 	mux.HandleFunc("GET /api/nonce", makeHTTPHandleFunc(getNonce))
 	mux.HandleFunc("POST /api/signin", makeHTTPHandleFunc(signin))
-	mux.HandleFunc("GET /api/private", withAuth(makeHTTPHandleFunc(private)))
+	mux.HandleFunc("GET /api/participate", withAuth(makeHTTPHandleFunc(participate)))
+	mux.HandleFunc("GET /api/signout", withAuth(makeHTTPHandleFunc(signout)))
 
 	//handler := cors.Default().Handler(mux)
 
@@ -40,8 +41,11 @@ func main() {
 	http.ListenAndServe(":8085", handler)
 }
 
-func private(w http.ResponseWriter, r *http.Request) error {
-	return WriteText(w, http.StatusOK, "private")
+func participate(w http.ResponseWriter, r *http.Request) error {
+
+	// todo: get data from store
+
+	return WriteText(w, http.StatusOK, "participate")
 }
 
 func getNonce(w http.ResponseWriter, r *http.Request) error {
@@ -80,6 +84,7 @@ func signin(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	session.Values["address"] = siweMessage.GetAddress().String()
+	session.Values["authenticated"] = true
 
 	if err := session.Save(r, w); err != nil {
 		return err
@@ -89,9 +94,25 @@ func signin(w http.ResponseWriter, r *http.Request) error {
 
 }
 
+func signout(w http.ResponseWriter, r *http.Request) error {
+	session, _ := store.Get(r, "sessionId")
+	session.Values["authenticated"] = false
+	delete(session.Values, "address")
+
+	if err := session.Save(r, w); err != nil {
+		return err
+	}
+	return WriteJSON(w, http.StatusOK, nil)
+}
+
 func withAuth(handlerFunc http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		println("auth")
+		session, _ := store.Get(r, "sessionId")
+
+		if auth, ok := session.Values["authenticated"].(bool); !ok || !auth {
+			WriteJSON(w, http.StatusUnauthorized, "Unauthorized")
+			return
+		}
 
 		handlerFunc(w, r)
 	}
